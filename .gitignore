@@ -1,0 +1,4 @@
+.env
+underpass.log
+notes.txt
+*.geojson
