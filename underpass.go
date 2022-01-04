@@ -16,9 +16,31 @@ import (
 type Underpass struct {
 	db     *sql.DB
 	router *fiber.App
+	Log    io.Writer
 }
 
-func (u *Underpass) InitDB() error {
+func New() *Underpass {
+	return &Underpass{Log: os.Stderr}
+}
+
+func (u *Underpass) Start() error {
+	if err := u.initDB(); err != nil {
+		return err
+	}
+	if err := u.initRouter(); err != nil {
+		return err
+	}
+	if err := u.startRouter(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (u *Underpass) initDB() error {
+
+	if u.db != nil {
+		return nil
+	}
 
 	dsn := fmt.Sprintf(
 		"host=%s port=%s user=%s password=%s dbname=%s",
@@ -43,34 +65,49 @@ func (u *Underpass) InitDB() error {
 	return nil
 }
 
-func (u *Underpass) InitRouter(w io.Writer) {
+func (u *Underpass) initRouter() error {
+	if u.router != nil {
+		return nil
+	}
 	router := fiber.New()
-	SetupRoutes(router, u.db, w)
 	u.router = router
+	return u.setupRoutes()
 }
 
-func (u *Underpass) StartRouter() error {
+func (u *Underpass) startRouter() error {
 	addr := net.JoinHostPort("localhost", os.Getenv("UNDERPASS_PORT"))
 	return u.router.Listen(addr)
 }
 
-func SetupRoutes(router *fiber.App, db *sql.DB, w io.Writer) {
+func (u *Underpass) setupRoutes() error {
 
-	handlers := NewHandlers(db)
+	if u.router == nil {
+		return fmt.Errorf("router not initialized")
+	}
+	if u.db == nil {
+		return fmt.Errorf("db not initialized")
+	}
 
-	router.Use(logger.New(logger.Config{
-		Output:     w,
+	handlers := newHandlers(u.db)
+
+	u.router.Use(logger.New(logger.Config{
+		Output:     u.Log,
 		Format:     "${date} ${time} UTC | ${path} | ${status} | ${latency} | ${bytesSent} B\n",
 		TimeFormat: "02-Jan-2006 15:04:05",
 		TimeZone:   "UTC",
 	}))
 
 	// highways
-	router.Get("/api/highways/id/:id", handlers.QueryHighwaysByID)
-	router.Get("/api/highways/bbox/:bbox", handlers.QueryHighwaysByBoundingBox)
+	u.router.Get("/api/highways/id/:id", handlers.QueryHighwaysByID)
+	u.router.Get("/api/highways/bbox/:bbox", handlers.QueryHighwaysByBoundingBox)
 
 	// buildings
-	router.Get("/api/buildings/id/:id", handlers.QueryBuildingsByID)
-	router.Get("/api/buildings/bbox/:bbox", handlers.QueryBuildingsByBoundingBox)
+	u.router.Get("/api/buildings/id/:id", handlers.QueryBuildingsByID)
+	u.router.Get("/api/buildings/bbox/:bbox", handlers.QueryBuildingsByBoundingBox)
 
+	return nil
+}
+
+func Start() error {
+	return New().Start()
 }

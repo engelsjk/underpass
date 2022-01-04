@@ -11,36 +11,36 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-type Handlers struct {
+type handlers struct {
 	queries *dbosm.Queries
 }
 
-func NewHandlers(db *sql.DB) *Handlers {
-	h := &Handlers{}
+func newHandlers(db *sql.DB) *handlers {
+	h := &handlers{}
 	h.queries = dbosm.New(db)
 	return h
 }
 
 // Highways
 
-func (h *Handlers) QueryHighwaysByID(c *fiber.Ctx) error {
+func (h *handlers) QueryHighwaysByID(c *fiber.Ctx) error {
 	id := c.Params("id")
 	return listByID(c, id, "highways", h.queries.ListByID)
 }
 
-func (h *Handlers) QueryHighwaysByBoundingBox(c *fiber.Ctx) error {
+func (h *handlers) QueryHighwaysByBoundingBox(c *fiber.Ctx) error {
 	bbox := c.Params("bbox")
 	return listByBbox(c, bbox, "highways", h.queries.ListByBoundingBox)
 }
 
 // Buildings
 
-func (h *Handlers) QueryBuildingsByID(c *fiber.Ctx) error {
+func (h *handlers) QueryBuildingsByID(c *fiber.Ctx) error {
 	id := c.Params("id")
 	return listByID(c, id, "highways", h.queries.ListByID)
 }
 
-func (h *Handlers) QueryBuildingsByBoundingBox(c *fiber.Ctx) error {
+func (h *handlers) QueryBuildingsByBoundingBox(c *fiber.Ctx) error {
 	bbox := c.Params("bbox")
 	return listByBbox(c, bbox, "highways", h.queries.ListByBoundingBox)
 }
