@@ -30,10 +30,7 @@ func (u *Underpass) Start() error {
 	if err := u.initRouter(); err != nil {
 		return err
 	}
-	if err := u.startRouter(); err != nil {
-		return err
-	}
-	return nil
+	return u.startRouter()
 }
 
 func (u *Underpass) initDB() error {

@@ -1,6 +1,7 @@
 package underpass
 
 import (
+	"encoding/json"
 	"strings"
 
 	geojson "github.com/paulmach/go.geojson"
@@ -23,7 +24,7 @@ func decode(r []interface{}) interface{} {
 	return o
 }
 
-func stringify(r []interface{}) string {
+func stringifyInterface(r []interface{}) string {
 	var sb strings.Builder
 
 	n := 0
@@ -42,5 +43,27 @@ func stringify(r []interface{}) string {
 		}
 	}
 	sb.WriteString("]")
+	return sb.String()
+}
+
+func stringifyJSONRawMessage(r []json.RawMessage) string {
+	var sb strings.Builder
+
+	n := 0
+	for _, s := range r {
+		n += len(s) + 1
+	}
+	n -= 1 // remove 1  byte for unused last "," delimiter in GeoJSON Feature array
+	n += 2 // add 2 bytes for "[" and "]"
+	sb.Grow(n)
+
+	// sb.WriteString("[")
+	for i, s := range r {
+		sb.WriteString(string(s))
+		if i != len(r)-1 {
+			sb.WriteString(",")
+		}
+	}
+	// sb.WriteString("]")
 	return sb.String()
 }

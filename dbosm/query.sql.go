@@ -5,14 +5,60 @@ package dbosm
 
 import (
 	"context"
+	"encoding/json"
 )
 
-const listByBoundingBox = `-- name: ListByBoundingBox :many
-SELECT ST_AsGeoJSON(t.*)
+const depracatedListByID = `-- name: DepracatedListByID :many
+SELECT ST_AsGeoJSON(t2.*)
+FROM osm_all AS t
+WHERE (
+    t2.osm_id = $1::bigint AND
+    ST_GeometryType(t2.geometry) IN ($2::text, $3::text) AND
+    t2.tags ? $4::text
+)
+`
+
+type DepracatedListByIDParams struct {
+	OsmID int64
+	Geom1 string
+	Geom2 string
+	Tag   string
+}
+
+func (q *Queries) DepracatedListByID(ctx context.Context, arg DepracatedListByIDParams) ([]interface{}, error) {
+	rows, err := q.db.QueryContext(ctx, depracatedListByID,
+		arg.OsmID,
+		arg.Geom1,
+		arg.Geom2,
+		arg.Tag,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []interface{}
+	for rows.Next() {
+		var st_asgeojson interface{}
+		if err := rows.Scan(&st_asgeojson); err != nil {
+			return nil, err
+		}
+		items = append(items, st_asgeojson)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const deprecatedListByBoundingBox = `-- name: DeprecatedListByBoundingBox :many
+SELECT ST_AsGeoJSON(t2.*)
 FROM osm_all AS t
 WHERE (
     ST_Intersects(
-        t.geometry,
+        t2.geometry,
         ST_SetSRID(
             ST_MakeBox2D(
                 ST_Point($1::float,$2::float),
@@ -21,12 +67,12 @@ WHERE (
             4326
         )
     ) AND
-    ST_GeometryType(t.geometry) IN ($5::text, $6::text) AND
-    t.tags ? $7::text
+    ST_GeometryType(t2.geometry) IN ($5::text, $6::text) AND
+    t2.tags ? $7::text
 )
 `
 
-type ListByBoundingBoxParams struct {
+type DeprecatedListByBoundingBoxParams struct {
 	LowLeftLon float64
 	LowLeftLat float64
 	UpRightLon float64
@@ -36,8 +82,8 @@ type ListByBoundingBoxParams struct {
 	Tag        string
 }
 
-func (q *Queries) ListByBoundingBox(ctx context.Context, arg ListByBoundingBoxParams) ([]interface{}, error) {
-	rows, err := q.db.QueryContext(ctx, listByBoundingBox,
+func (q *Queries) DeprecatedListByBoundingBox(ctx context.Context, arg DeprecatedListByBoundingBoxParams) ([]interface{}, error) {
+	rows, err := q.db.QueryContext(ctx, deprecatedListByBoundingBox,
 		arg.LowLeftLon,
 		arg.LowLeftLat,
 		arg.UpRightLon,
@@ -67,14 +113,122 @@ func (q *Queries) ListByBoundingBox(ctx context.Context, arg ListByBoundingBoxPa
 	return items, nil
 }
 
+const listByBoundingBox = `-- name: ListByBoundingBox :many
+SELECT json_agg(json_build_object(
+    'type',       'Feature',
+    'id',         t3.element_id,
+    'geometry',   ST_AsGeoJSON(t3.geometry)::json,
+    'properties', (to_jsonb(t3.tags))::json
+)) FROM (
+    SELECT t2.osm_id, t2.id, t2.geometry, t2.tags, t2.geometry_type, 
+    CASE
+        WHEN t2.geometry_type='ST_Point' THEN CONCAT('node/',t2.osm_id)
+        WHEN t2.geometry_type='ST_LineString' AND id > 0 THEN CONCAT('way/',t2.osm_id)
+        WHEN t2.geometry_type='ST_Polygon' AND id > 0 THEN CONCAT('way/',t2.osm_id)
+        WHEN t2.geometry_type='ST_MultiPolygon' AND id > 0 THEN CONCAT('way/',t2.osm_id)
+        WHEN t2.geometry_type='ST_MultiLineString' AND id > 0 THEN CONCAT('way/',t2.osm_id)
+        WHEN t2.geometry_type='ST_LineString' AND id < 0 THEN CONCAT('relation/',t2.osm_id)
+        WHEN t2.geometry_type='ST_Polygon' AND id < 0 THEN CONCAT('relation/',t2.osm_id)
+        WHEN t2.geometry_type='ST_MultiPolygon' AND id < 0 THEN CONCAT('relation/',t2.osm_id)
+        WHEN t2.geometry_type='ST_MultiLineString' AND id < 0 THEN CONCAT('relation/',t2.osm_id)
+        ELSE CONCAT('unknown/',t2.osm_id)
+    END AS element_id
+    FROM (
+        SELECT 
+        osm_id,id,geometry,tags, 
+        ST_GeometryType(geometry) AS geometry_type
+        FROM osm_all AS t1
+        WHERE (
+            ST_Intersects(
+                t1.geometry,
+                ST_SetSRID(
+                    ST_MakeBox2D(
+                        ST_Point($1::float,$2::float),
+                        ST_Point($3::float,$4::float)
+                    ),
+                    4326
+                )
+            ) AND
+            ST_GeometryType(t1.geometry) IN ($5::text, $6::text) AND
+            t1.tags ? $7::text
+        )
+    ) AS t2
+) AS t3
+`
+
+type ListByBoundingBoxParams struct {
+	LowLeftLon float64
+	LowLeftLat float64
+	UpRightLon float64
+	UpRightLat float64
+	Geom1      string
+	Geom2      string
+	Tag        string
+}
+
+func (q *Queries) ListByBoundingBox(ctx context.Context, arg ListByBoundingBoxParams) ([]json.RawMessage, error) {
+	rows, err := q.db.QueryContext(ctx, listByBoundingBox,
+		arg.LowLeftLon,
+		arg.LowLeftLat,
+		arg.UpRightLon,
+		arg.UpRightLat,
+		arg.Geom1,
+		arg.Geom2,
+		arg.Tag,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []json.RawMessage
+	for rows.Next() {
+		var json_agg json.RawMessage
+		if err := rows.Scan(&json_agg); err != nil {
+			return nil, err
+		}
+		items = append(items, json_agg)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listByID = `-- name: ListByID :many
-SELECT ST_AsGeoJSON(t.*)
-FROM osm_all AS t
-WHERE (
-    t.osm_id = $1::bigint AND
-    ST_GeometryType(t.geometry) IN ($2::text, $3::text) AND
-    t.tags ? $4::text
-)
+SELECT json_agg(json_build_object(
+    'type',       'Feature',
+    'id',         t3.element_id,
+    'geometry',   ST_AsGeoJSON(t3.geometry)::json,
+    'properties', (to_jsonb(t3.tags))::json
+)) FROM (
+    SELECT t2.osm_id, t2.id, t2.geometry, t2.tags, t2.geometry_type, 
+    CASE
+        WHEN t2.geometry_type='ST_Point' THEN CONCAT('node/',t2.osm_id)
+        WHEN t2.geometry_type='ST_LineString' AND id > 0 THEN CONCAT('way/',t2.osm_id)
+        WHEN t2.geometry_type='ST_Polygon' AND id > 0 THEN CONCAT('way/',t2.osm_id)
+        WHEN t2.geometry_type='ST_MultiPolygon' AND id > 0 THEN CONCAT('way/',t2.osm_id)
+        WHEN t2.geometry_type='ST_MultiLineString' AND id > 0 THEN CONCAT('way/',t2.osm_id)
+        WHEN t2.geometry_type='ST_LineString' AND id < 0 THEN CONCAT('relation/',t2.osm_id)
+        WHEN t2.geometry_type='ST_Polygon' AND id < 0 THEN CONCAT('relation/',t2.osm_id)
+        WHEN t2.geometry_type='ST_MultiPolygon' AND id < 0 THEN CONCAT('relation/',t2.osm_id)
+        WHEN t2.geometry_type='ST_MultiLineString' AND id < 0 THEN CONCAT('relation/',t2.osm_id)
+        ELSE CONCAT('unknown/',t2.osm_id)
+    END AS element_id
+    FROM (
+        SELECT 
+        osm_id,id,geometry,tags, 
+        ST_GeometryType(geometry) AS geometry_type
+        FROM osm_all AS t1
+        WHERE (
+            t1.osm_id = $1::bigint AND
+            ST_GeometryType(t1.geometry) IN ($2::text, $3::text) AND
+            t1.tags ? $4::text
+        )
+    ) AS t2
+) AS t3
 `
 
 type ListByIDParams struct {
@@ -84,7 +238,7 @@ type ListByIDParams struct {
 	Tag   string
 }
 
-func (q *Queries) ListByID(ctx context.Context, arg ListByIDParams) ([]interface{}, error) {
+func (q *Queries) ListByID(ctx context.Context, arg ListByIDParams) ([]json.RawMessage, error) {
 	rows, err := q.db.QueryContext(ctx, listByID,
 		arg.OsmID,
 		arg.Geom1,
@@ -95,13 +249,13 @@ func (q *Queries) ListByID(ctx context.Context, arg ListByIDParams) ([]interface
 		return nil, err
 	}
 	defer rows.Close()
-	var items []interface{}
+	var items []json.RawMessage
 	for rows.Next() {
-		var st_asgeojson interface{}
-		if err := rows.Scan(&st_asgeojson); err != nil {
+		var json_agg json.RawMessage
+		if err := rows.Scan(&json_agg); err != nil {
 			return nil, err
 		}
-		items = append(items, st_asgeojson)
+		items = append(items, json_agg)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err

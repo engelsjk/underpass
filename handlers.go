@@ -3,6 +3,7 @@ package underpass
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -37,12 +38,12 @@ func (h *handlers) QueryHighwaysByBoundingBox(c *fiber.Ctx) error {
 
 func (h *handlers) QueryBuildingsByID(c *fiber.Ctx) error {
 	id := c.Params("id")
-	return listByID(c, id, "highways", h.queries.ListByID)
+	return listByID(c, id, "buildings", h.queries.ListByID)
 }
 
 func (h *handlers) QueryBuildingsByBoundingBox(c *fiber.Ctx) error {
 	bbox := c.Params("bbox")
-	return listByBbox(c, bbox, "highways", h.queries.ListByBoundingBox)
+	return listByBbox(c, bbox, "buildings", h.queries.ListByBoundingBox)
 }
 
 // funcs
@@ -51,7 +52,7 @@ func listByID(
 	c *fiber.Ctx,
 	i string,
 	t string,
-	f func(ctx context.Context, arg dbosm.ListByIDParams) ([]interface{}, error),
+	f func(ctx context.Context, arg dbosm.ListByIDParams) ([]json.RawMessage, error),
 ) error {
 
 	id, err := strconv.Atoi(i)
@@ -85,14 +86,14 @@ func listByID(
 	}
 
 	c.Append("Content-Type", "application/json")
-	return c.SendString(stringify(rec))
+	return c.SendString(stringifyJSONRawMessage(rec))
 }
 
 func listByBbox(
 	c *fiber.Ctx,
 	b string,
 	t string,
-	f func(ctx context.Context, arg dbosm.ListByBoundingBoxParams) ([]interface{}, error),
+	f func(ctx context.Context, arg dbosm.ListByBoundingBoxParams) ([]json.RawMessage, error),
 ) error {
 
 	bb := strings.Split(b, ",")
@@ -140,7 +141,7 @@ func listByBbox(
 	}
 
 	c.Append("Content-Type", "application/json")
-	return c.SendString(stringify(rec))
+	return c.SendString(stringifyJSONRawMessage(rec))
 }
 
 func statusError(c *fiber.Ctx, err error) error {

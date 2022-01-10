@@ -22,7 +22,9 @@ func main() {
 	flag.Parse()
 
 	if !*saveLog {
-		underpass.Start()
+		if err := underpass.Start(); err != nil {
+			log.Fatal(err)
+		}
 	}
 
 	f, err := os.OpenFile(
@@ -35,5 +37,7 @@ func main() {
 	defer f.Close()
 
 	u := &underpass.Underpass{Log: f}
-	u.Start()
+	if err := u.Start(); err != nil {
+		log.Fatal(err)
+	}
 }
