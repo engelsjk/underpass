@@ -1,9 +1,9 @@
 package underpass
 
 import (
-	"encoding/json"
 	"strings"
 
+	"github.com/jackc/pgtype"
 	geojson "github.com/paulmach/go.geojson"
 )
 
@@ -46,12 +46,12 @@ func stringifyInterface(r []interface{}) string {
 	return sb.String()
 }
 
-func stringifyJSONRawMessage(r []json.RawMessage) string {
+func stringifyJSONRawMessage(r []pgtype.JSON) string {
 	var sb strings.Builder
 
 	n := 0
 	for _, s := range r {
-		n += len(s) + 1
+		n += len(s.Bytes) + 1
 	}
 	n -= 1 // remove 1  byte for unused last "," delimiter in GeoJSON Feature array
 	n += 2 // add 2 bytes for "[" and "]"
@@ -59,7 +59,7 @@ func stringifyJSONRawMessage(r []json.RawMessage) string {
 
 	// sb.WriteString("[")
 	for i, s := range r {
-		sb.WriteString(string(s))
+		sb.WriteString(string(s.Bytes))
 		if i != len(r)-1 {
 			sb.WriteString(",")
 		}

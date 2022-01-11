@@ -1,7 +1,7 @@
 package underpass
 
 import (
-	"database/sql"
+	"context"
 	"fmt"
 	"io"
 	"net"
@@ -9,12 +9,12 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/logger"
-
-	_ "github.com/lib/pq"
+	"github.com/jackc/pgx/v4/pgxpool"
 )
 
 type Underpass struct {
-	db     *sql.DB
+	// db2    *sql.DB
+	db     *pgxpool.Pool
 	router *fiber.App
 	Log    io.Writer
 }
@@ -24,19 +24,15 @@ func New() *Underpass {
 }
 
 func (u *Underpass) Start() error {
-	if err := u.initDB(); err != nil {
-		return err
-	}
-	if err := u.initRouter(); err != nil {
-		return err
-	}
+	u.initDB()
+	u.initRouter()
 	return u.startRouter()
 }
 
-func (u *Underpass) initDB() error {
+func (u *Underpass) initDB() {
 
 	if u.db != nil {
-		return nil
+		return
 	}
 
 	dsn := fmt.Sprintf(
@@ -48,27 +44,35 @@ func (u *Underpass) initDB() error {
 		os.Getenv("DB_NAME"),
 	)
 
-	db, err := sql.Open("postgres", dsn)
+	// config, err := pgx.ParseConfig(dsn)
+	// if err != nil {
+	// 	fmt.Println(err)
+	// 	os.Exit(1)
+	// }
+
+	ctx := context.Background()
+
+	db, err := pgxpool.Connect(ctx, dsn)
 	if err != nil {
-		return err
+		fmt.Println(err)
+		os.Exit(1)
 	}
 
-	if err = db.Ping(); err != nil {
-		return err
+	if err = db.Ping(ctx); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
 	}
 
 	u.db = db
-
-	return nil
 }
 
-func (u *Underpass) initRouter() error {
+func (u *Underpass) initRouter() {
 	if u.router != nil {
-		return nil
+		return
 	}
 	router := fiber.New()
 	u.router = router
-	return u.setupRoutes()
+	u.setupRoutes()
 }
 
 func (u *Underpass) startRouter() error {
@@ -76,13 +80,15 @@ func (u *Underpass) startRouter() error {
 	return u.router.Listen(addr)
 }
 
-func (u *Underpass) setupRoutes() error {
+func (u *Underpass) setupRoutes() {
 
 	if u.router == nil {
-		return fmt.Errorf("router not initialized")
+		fmt.Println("router not initialized")
+		os.Exit(1)
 	}
 	if u.db == nil {
-		return fmt.Errorf("db not initialized")
+		fmt.Println("db not initialized")
+		os.Exit(1)
 	}
 
 	handlers := newHandlers(u.db)
@@ -94,15 +100,10 @@ func (u *Underpass) setupRoutes() error {
 		TimeZone:   "UTC",
 	}))
 
-	// highways
-	u.router.Get("/api/highways/id/:id", handlers.QueryHighwaysByID)
-	u.router.Get("/api/highways/bbox/:bbox", handlers.QueryHighwaysByBoundingBox)
-
-	// buildings
-	u.router.Get("/api/buildings/id/:id", handlers.QueryBuildingsByID)
-	u.router.Get("/api/buildings/bbox/:bbox", handlers.QueryBuildingsByBoundingBox)
-
-	return nil
+	u.router.Get("/api/node/:id", handlers.QueryNodesByID)
+	u.router.Get("/api/way/:id", handlers.QueryWaysByID)
+	u.router.Get("/api/relation/:id", handlers.QueryRelationsByID)
+	u.router.Get("/api/bbox/:bbox", handlers.QueryBboxByBbox)
 }
 
 func Start() error {

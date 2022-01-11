@@ -1,103 +1,81 @@
 -- name: ListByID :many
-SELECT json_agg(json_build_object(
+SELECT json_build_object(
     'type',       'Feature',
-    'id',         t3.element_id,
-    'geometry',   ST_AsGeoJSON(t3.geometry)::json,
-    'properties', (to_jsonb(t3.tags))::json
-)) FROM (
-    SELECT t2.*, 
-    CASE
-        WHEN t2.geometry_type='ST_Point' THEN CONCAT('node/',t2.osm_id)
-        WHEN t2.geometry_type='ST_LineString' AND id > 0 THEN CONCAT('way/',t2.osm_id)
-        WHEN t2.geometry_type='ST_Polygon' AND id > 0 THEN CONCAT('way/',t2.osm_id)
-        WHEN t2.geometry_type='ST_MultiPolygon' AND id > 0 THEN CONCAT('way/',t2.osm_id)
-        WHEN t2.geometry_type='ST_MultiLineString' AND id > 0 THEN CONCAT('way/',t2.osm_id)
-        WHEN t2.geometry_type='ST_LineString' AND id < 0 THEN CONCAT('relation/',t2.osm_id)
-        WHEN t2.geometry_type='ST_Polygon' AND id < 0 THEN CONCAT('relation/',t2.osm_id)
-        WHEN t2.geometry_type='ST_MultiPolygon' AND id < 0 THEN CONCAT('relation/',t2.osm_id)
-        WHEN t2.geometry_type='ST_MultiLineString' AND id < 0 THEN CONCAT('relation/',t2.osm_id)
-        ELSE CONCAT('unknown/',t2.osm_id)
-    END AS element_id
+    'id',         T3.element_id,
+    'geometry',   ST_AsGeoJSON(T3.geometry)::json,
+    'properties', (to_jsonb(T3.tags))::json
+) FROM (
+    SELECT T2.*
     FROM (
         SELECT 
-        osm_id,id,geometry,tags, 
-        ST_GeometryType(geometry) AS geometry_type
-        FROM osm_all AS t1
+        T1.osm_id,T1.geometry,T1.tags, 
+        CASE
+            WHEN osm_id > 0 THEN CONCAT('node/', osm_id)
+            WHEN osm_id < 0 AND osm_id > -1e17 THEN CONCAT('way/',-osm_id)
+            WHEN osm_id < -1e17 THEN CONCAT('relation/',-osm_id)
+            ELSE 'unknown'
+        END AS element_id,
+        CASE
+            WHEN osm_id > 0 THEN 'node'
+            WHEN osm_id < 0 AND osm_id > -1e17 THEN 'way'
+            WHEN osm_id < -1e17 THEN 'relation'
+            ELSE 'unknown'
+        END AS element_type
+        FROM osm_all AS T1
         WHERE (
-            t1.osm_id = @osm_id::bigint AND
-            ST_GeometryType(t1.geometry) IN (@geom1::text, @geom2::text) AND
-            t1.tags ? @tag::text
+            osm_id = @osm_id::bigint
         )
-    ) AS t2
-) AS t3;
+    ) AS T2 
+    WHERE (
+        element_type = @element_type::text AND
+        CASE
+            WHEN ST_GeometryType(geometry) = 'ST_LineString' THEN ST_IsClosed(geometry) IS NOT TRUE
+            ELSE TRUE
+        END
+    )
+) AS T3;
 
 -- name: ListByBoundingBox :many
 SELECT json_agg(json_build_object(
     'type',       'Feature',
-    'id',         t3.element_id,
-    'geometry',   ST_AsGeoJSON(t3.geometry)::json,
-    'properties', (to_jsonb(t3.tags))::json
+    'id',         T3.element_id,
+    'geometry',   ST_AsGeoJSON(T3.geometry)::json,
+    'properties', (to_jsonb(T3.tags))::json
 )) FROM (
-    SELECT t2.*, 
-    CASE
-        WHEN t2.geometry_type='ST_Point' THEN CONCAT('node/',t2.osm_id)
-        WHEN t2.geometry_type='ST_LineString' AND id > 0 THEN CONCAT('way/',t2.osm_id)
-        WHEN t2.geometry_type='ST_Polygon' AND id > 0 THEN CONCAT('way/',t2.osm_id)
-        WHEN t2.geometry_type='ST_MultiPolygon' AND id > 0 THEN CONCAT('way/',t2.osm_id)
-        WHEN t2.geometry_type='ST_MultiLineString' AND id > 0 THEN CONCAT('way/',t2.osm_id)
-        WHEN t2.geometry_type='ST_LineString' AND id < 0 THEN CONCAT('relation/',t2.osm_id)
-        WHEN t2.geometry_type='ST_Polygon' AND id < 0 THEN CONCAT('relation/',t2.osm_id)
-        WHEN t2.geometry_type='ST_MultiPolygon' AND id < 0 THEN CONCAT('relation/',t2.osm_id)
-        WHEN t2.geometry_type='ST_MultiLineString' AND id < 0 THEN CONCAT('relation/',t2.osm_id)
-        ELSE CONCAT('unknown/',t2.osm_id)
-    END AS element_id
+    SELECT DISTINCT ON (T2.osm_id) T2.*
     FROM (
         SELECT 
-        osm_id,id,geometry,tags, 
-        ST_GeometryType(geometry) AS geometry_type
-        FROM osm_all AS t1
+        T1.osm_id,T1.geometry,T1.tags, 
+        jsonb_object_keys(to_jsonb(T1.tags)) as key,
+        CASE
+             WHEN osm_id > 0 THEN CONCAT('node/', osm_id)
+            WHEN osm_id < 0 AND osm_id > -1e17 THEN CONCAT('way/',-osm_id)
+            WHEN osm_id < -1e17 THEN CONCAT('relation/',-osm_id)
+            ELSE 'unknown'
+        END AS element_id
+        FROM osm_all AS T1
         WHERE (
             ST_Intersects(
-                t1.geometry,
+                geometry,
                 ST_SetSRID(
                     ST_MakeBox2D(
                         ST_Point(@low_left_lon::float,@low_left_lat::float),
                         ST_Point(@up_right_lon::float,@up_right_lat::float)
-                    ),
-                    4326
+                    ),4326
                 )
             ) AND
-            ST_GeometryType(t1.geometry) IN (@geom1::text, @geom2::text) AND
-            t1.tags ? @tag::text
+            CASE
+                WHEN ST_GeometryType(geometry) = 'ST_LineString' THEN ST_IsClosed(geometry) IS NOT TRUE
+                ELSE TRUE
+            END
         )
-    ) AS t2
-) AS t3;
+    ) AS T2 
+    WHERE (
+        CASE 
+            WHEN @is_tag::boolean THEN tags ? @key::text
+            WHEN @is_tag_list::boolean THEN tags -> @key::text = ANY(@vals::text[])
+        ELSE TRUE
+        END
+    )
+) AS T3;
 
-
-
--- name: DepracatedListByID :many
-SELECT ST_AsGeoJSON(t2.*)
-FROM osm_all AS t
-WHERE (
-    t2.osm_id = @osm_id::bigint AND
-    ST_GeometryType(t2.geometry) IN (@geom1::text, @geom2::text) AND
-    t2.tags ? @tag::text
-);
-
--- name: DeprecatedListByBoundingBox :many
-SELECT ST_AsGeoJSON(t2.*)
-FROM osm_all AS t
-WHERE (
-    ST_Intersects(
-        t2.geometry,
-        ST_SetSRID(
-            ST_MakeBox2D(
-                ST_Point(@low_left_lon::float,@low_left_lat::float),
-                ST_Point(@up_right_lon::float,@up_right_lat::float)
-            ),
-            4326
-        )
-    ) AND
-    ST_GeometryType(t2.geometry) IN (@geom1::text, @geom2::text) AND
-    t2.tags ? @tag::text
-);

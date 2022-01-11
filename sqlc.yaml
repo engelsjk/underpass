@@ -3,5 +3,6 @@ packages:
   - path: "dbosm"
     name: "dbosm"
     engine: "postgresql"
+    sql_package: "pgx/v4"
     schema: "sqlc/schema.sql"
     queries: "sqlc/query.sql"
