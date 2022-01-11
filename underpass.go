@@ -13,7 +13,6 @@ import (
 )
 
 type Underpass struct {
-	// db2    *sql.DB
 	db     *pgxpool.Pool
 	router *fiber.App
 	Log    io.Writer
@@ -43,12 +42,6 @@ func (u *Underpass) initDB() {
 		os.Getenv("DB_PASSWORD"),
 		os.Getenv("DB_NAME"),
 	)
-
-	// config, err := pgx.ParseConfig(dsn)
-	// if err != nil {
-	// 	fmt.Println(err)
-	// 	os.Exit(1)
-	// }
 
 	ctx := context.Background()
 
