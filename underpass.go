@@ -69,7 +69,7 @@ func (u *Underpass) initRouter() {
 }
 
 func (u *Underpass) startRouter() error {
-	addr := net.JoinHostPort("localhost", os.Getenv("UNDERPASS_PORT"))
+	addr := net.JoinHostPort(os.Getenv("UNDERPASS_HOST"), os.Getenv("UNDERPASS_PORT"))
 	return u.router.Listen(addr)
 }
 
