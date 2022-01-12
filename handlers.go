@@ -78,7 +78,7 @@ func listByID(
 		params.OsmID = -int64(id)
 		params.ElementType = "way"
 	case "relations":
-		params.OsmID = -int64(id)
+		params.OsmID = -int64(id) - 1e17
 		params.ElementType = "relation"
 	default:
 		return statusError(c, ErrInvalidType)

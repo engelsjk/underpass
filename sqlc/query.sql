@@ -12,7 +12,7 @@ SELECT json_build_object(
         CASE
             WHEN osm_id > 0 THEN CONCAT('node/', osm_id)
             WHEN osm_id < 0 AND osm_id > -1e17 THEN CONCAT('way/',-osm_id)
-            WHEN osm_id < -1e17 THEN CONCAT('relation/',-osm_id)
+            WHEN osm_id < -1e17 THEN CONCAT('relation/',-(osm_id+1e17))
             ELSE 'unknown'
         END AS element_id,
         CASE
@@ -50,7 +50,7 @@ SELECT json_agg(json_build_object(
         CASE
              WHEN osm_id > 0 THEN CONCAT('node/', osm_id)
             WHEN osm_id < 0 AND osm_id > -1e17 THEN CONCAT('way/',-osm_id)
-            WHEN osm_id < -1e17 THEN CONCAT('relation/',-osm_id)
+            WHEN osm_id < -1e17 THEN CONCAT('relation/',-(osm_id+1e17))
             ELSE 'unknown'
         END AS element_id
         FROM osm_all AS T1
