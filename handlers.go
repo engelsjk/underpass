@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"strconv"
 	"strings"
 
@@ -150,10 +149,6 @@ func listByBbox(
 			isTagList = true
 		}
 	}
-
-	fmt.Printf("t: %s\n", t)
-	fmt.Printf("key: %s\n", key)
-	fmt.Printf("vals: %v\n", vals)
 
 	args := dbosm.ListByBoundingBoxParams{
 		LowLeftLon: lowLeftLon,
