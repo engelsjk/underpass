@@ -1,6 +1,6 @@
 # Underpass
 
-An API built on top of a live OpenStreetMap (OSM) instance that provides custom and fast queries of selected OSM features. Intended as a faster alternative to the [Overpass API](https://wiki.openstreetmap.org/wiki/Overpass_API).
+An API built on top of a live OpenStreetMap (OSM) instance that provides custom and fast queries of selected OSM features. An alternative to the [Overpass API](https://wiki.openstreetmap.org/wiki/Overpass_API).
 
 ## Setup
 
