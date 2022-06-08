@@ -1,13 +1,13 @@
 # Underpass
 
-An API built on top of a live, local OpenStreetMap (OSM) instance that provides custom and fast queries of selected map data. Intended as a quicker alternative to the [Overpass API](https://wiki.openstreetmap.org/wiki/Overpass_API).
+An API built on top of a live OpenStreetMap (OSM) instance that provides custom and fast queries of selected OSM features. Intended as a faster alternative to the [Overpass API](https://wiki.openstreetmap.org/wiki/Overpass_API).
 
 ## Setup
 
 The Underpass setup consists of two phases:
 
-* First, spin up a live instance of Docker-OSM for your area of interest using an Underpass-specific database schema
-* Then start an Underpass server that connects to the running Docker-OSM instance
+* Spin up a live instance of Docker-OSM for your area of interest using an Underpass-specific database schema
+* Start an Underpass server that connects to the running Docker-OSM instance
 
 ### Docker-OSM Setup
 
@@ -45,7 +45,7 @@ tables:
 
 Depending on the size of your geographic area of interest, the sequence of downloading a PBF file, spinning up a Docker-OSM instance and waiting for the OSM feature import process to complete can take a bit of time.
 
-Once that process completes and you have a running instance (that both has data in a database and is importing live data from the OSM global feed), then you can spin up an Underpass API server.
+Once that process completes and you have a running instance (which both has data in a database and is importing live data from the OSM global feed), then you can spin up an Underpass API server.
 
 ### Underpass Setup
 
@@ -61,7 +61,7 @@ Then build an Underpass binary:
 go build -o bin/underpass cmd/underpass/main.go
 ```
 
-This Underpass binary requires a ```.env``` file that includes the connection parameters to a Docker-OSM instance. It must include the following variables:
+This Underpass binary requires a ```.env``` file that includes the connection parameters to the Docker-OSM instance. Copy the  ```.example.env``` file in this repository, rename it to ```.env``` and then edit the variables to match the existing Docker-OSM instance that you've set up in the previous section.
 
 ```
 DB_HOST=localhost
@@ -74,9 +74,7 @@ UNDERPASS_HOST=
 UNDERPASS_PORT=3000
 ```
 
-Copy the  ```.example.env``` file in this repository, rename it to ```.env``` and the edit the variables to match the existing Docker-OSM instance that you've set up in the previous section.
-
-Note that the Underpass binary has a single flag option ```-save_logs``` which will output the Underpass server logs to the filename specified in the ```.env``` file.
+Note that the Underpass binary has a single flag option ```-save_logs``` which will output the Underpass server logs to the filename specified by the ```UNDERPASS_LOG``` variable in the  ```.env``` file.
 
 ## Run
 
@@ -95,7 +93,7 @@ By default, Underpass includes only two SQL queries to the Docker-OSM database:
 
 ### ListByID
 
-The ListByID query is used to query the Docker-OSM database for a single OSM feature (node, way or relation) by its OSM ID.
+The ListByID query is used to query the Docker-OSM database for a single OSM feature (a node, way or relation) by its OSM ID.
 
 ```
 /api/{node|way|relation}/{osm_id}
@@ -127,7 +125,7 @@ For example:
 
 ### ListByBoundingBox
 
-The ListByBoundingBox query is used to query the Docker-OSM database for all OSM features within a bounding box, given by its lower left and upper right coordinate pair.
+The ListByBoundingBox query is used to query the Docker-OSM database for all OSM features within a bounding box, given by its lower-left and upper-right coordinate pair.
 
 ```
 /api/bbox/{ll_lat},{ll_lon},{ur_lat},{ur_lon}
@@ -135,7 +133,7 @@ The ListByBoundingBox query is used to query the Docker-OSM database for all OSM
 
 The response will be an array of GeoJSON features.
 
-Additionally, the query parameter ```tag``` can be included to filter the OSM features in the bounding box by a single OSM tag key.
+Additionally, a query parameter ```tag``` can be included to filter the OSM features in the bounding box by a single OSM tag key.
 
 ```
 ?tag={"highway": ["*"]}
@@ -145,17 +143,17 @@ The tag filter can be either a wildcard set (eg ```["*"]```) to include all OSM 
 
 ## PostgreSQL Interface
 
-The PostgreSQL driver from [jackc/pgx](https://github.com/jackc/pgx) is used to interface with the Docker-OSM PostGIS instance. A database schema file is used to map to the Docker-OSM schema (```sqlc/schema.sql```), and OSM feature queries are defined in SQL files. Type-safe Go code is then generated from those SQL files using [kyleconroy/sqlc](https://github.com/kyleconroy/sqlc).
+The PostgreSQL driver from [jackc/pgx](https://github.com/jackc/pgx) is used to interface with the Docker-OSM PostGIS instance. A database schema file is used to map to the Docker-OSM schema (```sqlc/schema.sql```) and OSM feature queries are defined in a query file (```sqlc/query.sql```). Type-safe Go code is then generated from those SQL files using [kyleconroy/sqlc](https://github.com/kyleconroy/sqlc).
 
 ## Customization
 
-By default, Underpass is configured to match a PostgreSQL database schema for a specific Docker-OSM configuration (shown above in ```Docker-OSM Setup```). A limited set of SQL queries is also configured by default.
+By default, Underpass is configured to match a PostgreSQL database schema for a specific Docker-OSM configuration (shown above in ```Docker-OSM Setup```). A limited set of SQL queries is also configured by default, as noted above.
 
-However, a customized Docker-OSM schema can be used and more queries can be added to your unique Underpass instance.
+However, a customized Docker-OSM schema can be used that match a desired Docker-OSM configuration, and more queries can be added to your unique Underpass instance.
+
+Customization of schemas and queries in Underpass can be quite involved however. It requires new SQL code and new type-safe Go code to be generated from the SQL, as well as modification to add new route handlers for the new queries. Your mileage may vary.
 
 Underpass uses the [kyleconroy/sqlc](https://github.com/kyleconroy/sqlc) tool to generate type-safe  code from SQL. To customize your Underpass SQL configuration, first edit the ```sqlc.yaml``` file as needed. Then edit the database schema and SQL query files.
-
-WARNING: Customization of schemas and queries in Underpass can be quite involved. It requires new SQL code and new type-safe Go code generated from it, and then extensive modification to add new route handlers for the new queries. Your mileage may vary.
 
 ### Schema
 
