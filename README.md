@@ -2,13 +2,6 @@
 
 An API built on top of a live, local OpenStreetMap (OSM) instance that provides custom and fast queries of selected map data. Intended as a quicker alternative to the [Overpass API](https://wiki.openstreetmap.org/wiki/Overpass_API).
 
-## Queries
-
-By default, Underpass includes only two SQL queries to the Docker-OSM database:
-
-* ListByID: a list of features by OSM node/way/relation ID
-* ListByBoundingBox: a list of features by a lower-left / upper-right coordinate pair bounding box
-
 ## Setup
 
 The Underpass setup consists of two phases:
@@ -92,6 +85,63 @@ After building the binary, start up the Underpass server:
 ```bash
 bin/underpass -save_logs
 ```
+
+## Queries
+
+By default, Underpass includes only two SQL queries to the Docker-OSM database:
+
+* ListByID: a list of features by OSM node/way/relation ID
+* ListByBoundingBox: a list of features by a lower-left / upper-right coordinate pair bounding box
+
+### ListByID
+
+The ListByID query is used to query the Docker-OSM database for a single OSM feature (node, way or relation) by its OSM ID.
+
+```
+/api/{node|way|relation}/{osm_id}
+```
+
+If that OSM ID exists in the database, the response will be a single GeoJSON feature.
+
+For example:
+
+```
+/api/way/48985299
+```
+
+```json
+{
+    "type": "Feature",
+    "id": "way/48985299",
+    "geometry": {
+      "type": "Polygon",
+      "coordinates": [...]
+    },
+    "properties": {
+      "name": "AT&T Bedminster",
+      "building": "commercial",
+      ...
+    }
+}
+```
+
+### ListByBoundingBox
+
+The ListByBoundingBox query is used to query the Docker-OSM database for all OSM features within a bounding box, given by its lower left and upper right coordinate pair.
+
+```
+/api/bbox/{ll_lat},{ll_lon},{ur_lat},{ur_lon}
+```
+
+The response will be an array of GeoJSON features.
+
+Additionally, the query parameter ```tag``` can be included to filter the OSM features in the bounding box by a single OSM tag key.
+
+```
+?tag={"highway": ["*"]}
+```
+
+The tag filter can be either a wildcard set (eg ```["*"]```) to include all OSM features that have that tag, regardless of the tag value. Or it can be an inclusive set  of multiple tag values (eg ```["service", "cycleway"])``` to include any OSM features that have those tag key:value properties.
 
 ## PostgreSQL Interface
 
