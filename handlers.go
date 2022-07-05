@@ -156,13 +156,13 @@ func listByID(
 
 func listByBbox(
 	c *fiber.Ctx,
-	bboxParam string,
-	tagQueryParam string,
+	bbox string,
+	tag string,
 	f func(ctx context.Context, arg dbosm.ListByBoundingBoxParams) ([]pgtype.JSON, error),
 ) error {
 
 	// parse bbox
-	bb := strings.Split(bboxParam, ",")
+	bb := strings.Split(bbox, ",")
 
 	lowLeftLon, err := strconv.ParseFloat(bb[0], 64)
 	if err != nil {
@@ -187,9 +187,9 @@ func listByBbox(
 	var isTag bool
 	var isTagList bool
 
-	if tagQueryParam != "" {
+	if tag != "" {
 		tags := map[string][]string{}
-		if err := json.Unmarshal([]byte(tagQueryParam), &tags); err != nil {
+		if err := json.Unmarshal([]byte(tag), &tags); err != nil {
 			return statusError(c, ErrInvalidTagList)
 		}
 		keys := make([]string, len(tags))
@@ -234,21 +234,21 @@ func listByBbox(
 
 func listByKey(
 	c *fiber.Ctx,
-	keyQueryParam string,
-	valQueryParam string,
+	key string,
+	val string,
 	f func(ctx context.Context, params dbosm.ListByKeyParams) ([]pgtype.JSON, error),
 ) error {
 
-	key := keyQueryParam
+	k := key
 
-	val, err := url.QueryUnescape(valQueryParam)
+	v, err := url.QueryUnescape(val)
 	if err != nil {
 		return statusError(c, ErrInvalidQuery)
 	}
 
 	args := dbosm.ListByKeyParams{
-		Key: key,
-		Val: val,
+		Key: k,
+		Val: v,
 	}
 
 	rec, err := f(c.Context(), args)
