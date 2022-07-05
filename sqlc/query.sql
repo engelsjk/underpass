@@ -48,7 +48,7 @@ SELECT json_agg(json_build_object(
         T1.osm_id,T1.geometry,T1.tags, 
         jsonb_object_keys(to_jsonb(T1.tags)) as key,
         CASE
-             WHEN osm_id > 0 THEN CONCAT('node/', osm_id)
+            WHEN osm_id > 0 THEN CONCAT('node/', osm_id)
             WHEN osm_id < 0 AND osm_id > -1e17 THEN CONCAT('way/',-osm_id)
             WHEN osm_id < -1e17 THEN CONCAT('relation/',-(osm_id+1e17))
             ELSE 'unknown'
@@ -79,3 +79,36 @@ SELECT json_agg(json_build_object(
     )
 ) AS T3;
 
+-- name: ListByKey :many
+SELECT json_agg(json_build_object(
+    'type',       'Feature',
+    'id',         T3.element_id,
+    'geometry',   ST_AsGeoJSON(T3.geometry)::json,
+    'properties', (to_jsonb(T3.tags))::json
+)) FROM (
+    SELECT T2.*
+    FROM (
+        SELECT 
+        T1.osm_id,T1.geometry,T1.tags, 
+        CASE
+            WHEN osm_id > 0 THEN CONCAT('node/', osm_id)
+            WHEN osm_id < 0 AND osm_id > -1e17 THEN CONCAT('way/',-osm_id)
+            WHEN osm_id < -1e17 THEN CONCAT('relation/',-(osm_id+1e17))
+            ELSE 'unknown'
+        END AS element_id,
+        CASE
+            WHEN osm_id > 0 THEN 'node'
+            WHEN osm_id < 0 AND osm_id > -1e17 THEN 'way'
+            WHEN osm_id < -1e17 THEN 'relation'
+            ELSE 'unknown'
+        END AS element_type
+        FROM osm_all AS T1
+        WHERE (
+            tags -> @key::text = @val::text AND
+            CASE
+                WHEN ST_GeometryType(geometry) = 'ST_LineString' THEN ST_IsClosed(geometry) IS NOT TRUE
+                ELSE TRUE
+            END
+        )
+    ) AS T2 
+) AS T3;

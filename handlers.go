@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -14,11 +15,13 @@ import (
 )
 
 var (
-	ErrDatabase           error = errors.New("database error")
-	ErrInvalidID          error = errors.New("invalid id")
-	ErrInvalidType        error = errors.New("invalid type")
-	ErrInvalidBoundingBox error = errors.New("invalid bbox")
-	ErrInvalidTagList     error = errors.New("invalid tag list")
+	ErrDatabase                 error = errors.New("database error")
+	ErrInvalidID                error = errors.New("invalid id")
+	ErrInvalidQuery             error = errors.New("invalid query")
+	ErrMissingElementQueryParam error = errors.New("missing element query parameter")
+	ErrInvalidType              error = errors.New("invalid type")
+	ErrInvalidBoundingBox       error = errors.New("invalid bbox")
+	ErrInvalidTagList           error = errors.New("invalid tag list")
 )
 
 type handlers struct {
@@ -31,7 +34,9 @@ func newHandlers(db *pgxpool.Pool) *handlers {
 	return h
 }
 
-// Handler queries
+/////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////
+// legacy handlers
 
 func (h *handlers) QueryNodesByID(c *fiber.Ctx) error {
 	id := c.Params("id")
@@ -49,27 +54,84 @@ func (h *handlers) QueryRelationsByID(c *fiber.Ctx) error {
 }
 
 func (h *handlers) QueryBboxByBbox(c *fiber.Ctx) error {
-	bbox := c.Params("bbox")
-	tag := c.Query("tag")
-	return listByBbox(c, bbox, tag, h.queries.ListByBoundingBox)
+	bboxParam := c.Params("bbox")
+	tagQueryParam := c.Query("tag")
+	return listByBbox(c, bboxParam, tagQueryParam, h.queries.ListByBoundingBox)
 }
 
+func (h *handlers) QueryFeaturesByWikidataID(c *fiber.Ctx) error {
+	idParam := c.Params("id")
+	return listByKey(c, "wikidata", idParam, h.queries.ListByKey)
+}
+
+func (h *handlers) QueryFeaturesByWikipediaName(c *fiber.Ctx) error {
+	nameParam := c.Params("name")
+	return listByKey(c, "wikipedia", nameParam, h.queries.ListByKey)
+}
+
+/////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////
+// v1 handlers
+
+func (h *handlers) QueryFeatures(c *fiber.Ctx) error {
+	bbox := c.Query("bbox")
+	if bbox != "" {
+		tag := c.Query("tag")
+		return listByBbox(c, bbox, tag, h.queries.ListByBoundingBox)
+	}
+
+	wikidata := c.Query("wikidata")
+	if wikidata != "" {
+		return listByKey(c, "wikidata", wikidata, h.queries.ListByKey)
+	}
+
+	wikipedia := c.Query("wikipedia")
+	if wikipedia != "" {
+		return listByKey(c, "wikipedia", wikipedia, h.queries.ListByKey)
+	}
+
+	return statusError(c, ErrInvalidQuery)
+}
+
+func (h *handlers) QueryFeatureByID(c *fiber.Ctx) error {
+	id := c.Params("id")
+	element := c.Query("element")
+	switch element {
+	case "":
+		return statusError(c, ErrMissingElementQueryParam)
+	case "node":
+		return listByID(c, id, "nodes", h.queries.ListByID)
+	case "way":
+		return listByID(c, id, "ways", h.queries.ListByID)
+	case "relation":
+		return listByID(c, id, "relations", h.queries.ListByID)
+	default:
+		return statusError(c, ErrInvalidQuery)
+	}
+}
+
+func (h *handlers) InvalidQuery(c *fiber.Ctx) error {
+	return statusError(c, ErrInvalidQuery)
+}
+
+/////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////
 // funcs
 
 func listByID(
 	c *fiber.Ctx,
-	i string,
-	t string,
+	idParam string,
+	featureType string,
 	f func(ctx context.Context, params dbosm.ListByIDParams) ([]pgtype.JSON, error),
 ) error {
 
-	id, err := strconv.Atoi(i)
+	id, err := strconv.Atoi(idParam)
 	if err != nil {
 		return statusError(c, ErrInvalidID)
 	}
 
 	params := dbosm.ListByIDParams{}
-	switch t {
+	switch featureType {
 	case "nodes":
 		params.OsmID = int64(id)
 		params.ElementType = "node"
@@ -94,13 +156,13 @@ func listByID(
 
 func listByBbox(
 	c *fiber.Ctx,
-	b string,
-	t string,
+	bboxParam string,
+	tagQueryParam string,
 	f func(ctx context.Context, arg dbosm.ListByBoundingBoxParams) ([]pgtype.JSON, error),
 ) error {
 
 	// parse bbox
-	bb := strings.Split(b, ",")
+	bb := strings.Split(bboxParam, ",")
 
 	lowLeftLon, err := strconv.ParseFloat(bb[0], 64)
 	if err != nil {
@@ -125,9 +187,9 @@ func listByBbox(
 	var isTag bool
 	var isTagList bool
 
-	if t != "" {
+	if tagQueryParam != "" {
 		tags := map[string][]string{}
-		if err := json.Unmarshal([]byte(t), &tags); err != nil {
+		if err := json.Unmarshal([]byte(tagQueryParam), &tags); err != nil {
 			return statusError(c, ErrInvalidTagList)
 		}
 		keys := make([]string, len(tags))
@@ -159,6 +221,34 @@ func listByBbox(
 		Vals:       vals,
 		IsTag:      isTag,
 		IsTagList:  isTagList,
+	}
+
+	rec, err := f(c.Context(), args)
+	if err != nil {
+		return statusError(c, ErrDatabase)
+	}
+
+	c.Append("Content-Type", "application/json")
+	return c.SendString(stringifyJSONRawMessage(rec))
+}
+
+func listByKey(
+	c *fiber.Ctx,
+	keyQueryParam string,
+	valQueryParam string,
+	f func(ctx context.Context, params dbosm.ListByKeyParams) ([]pgtype.JSON, error),
+) error {
+
+	key := keyQueryParam
+
+	val, err := url.QueryUnescape(valQueryParam)
+	if err != nil {
+		return statusError(c, ErrInvalidQuery)
+	}
+
+	args := dbosm.ListByKeyParams{
+		Key: key,
+		Val: val,
 	}
 
 	rec, err := f(c.Context(), args)
