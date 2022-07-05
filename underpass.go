@@ -98,8 +98,8 @@ func (u *Underpass) setupRoutes() {
 	u.router.Get("/api/way/:id", handlers.QueryWaysByID)
 	u.router.Get("/api/relation/:id", handlers.QueryRelationsByID)
 	u.router.Get("/api/bbox/:bbox", handlers.QueryBboxByBbox)
-	u.router.Get("/api/wikidata/:id", handlers.QueryFeaturesByWikidataID)       // query by key:value
-	u.router.Get("/api/wikipedia/:name", handlers.QueryFeaturesByWikipediaName) // query by key:value
+	u.router.Get("/api/wikidata/:id", handlers.QueryFeaturesByWikidataID)
+	u.router.Get("/api/wikipedia/:name", handlers.QueryFeaturesByWikipediaName)
 
 	// v1
 	u.router.Get("/api/v1/features/", handlers.QueryFeatures)
