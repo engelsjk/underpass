@@ -103,7 +103,8 @@ func (u *Underpass) setupRoutes() {
 
 	// v1
 	u.router.Get("/api/v1/features/", handlers.QueryFeatures)
-	u.router.Get("/api/v1/features/:id", handlers.QueryFeatureByID)
+	u.router.Get("/api/v1/features/:id/", handlers.QueryFeatureByID)
+	u.router.Get("/api/v1/features/:id/:elementType", handlers.QueryFeatureByID)
 	u.router.Get("/*", handlers.InvalidQuery)
 }
 

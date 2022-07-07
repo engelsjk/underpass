@@ -15,13 +15,13 @@ import (
 )
 
 var (
-	ErrDatabase                 error = errors.New("database error")
-	ErrInvalidID                error = errors.New("invalid id")
-	ErrInvalidQuery             error = errors.New("invalid query")
-	ErrMissingElementQueryParam error = errors.New("missing element query parameter")
-	ErrInvalidType              error = errors.New("invalid type")
-	ErrInvalidBoundingBox       error = errors.New("invalid bbox")
-	ErrInvalidTagList           error = errors.New("invalid tag list")
+	ErrDatabase                error = errors.New("database error")
+	ErrInvalidID               error = errors.New("invalid id")
+	ErrInvalidQuery            error = errors.New("invalid query")
+	ErrMissingElementTypeParam error = errors.New("element type required")
+	ErrInvalidType             error = errors.New("invalid type")
+	ErrInvalidBoundingBox      error = errors.New("invalid bbox")
+	ErrInvalidTagList          error = errors.New("invalid tag list")
 )
 
 type handlers struct {
@@ -95,10 +95,10 @@ func (h *handlers) QueryFeatures(c *fiber.Ctx) error {
 
 func (h *handlers) QueryFeatureByID(c *fiber.Ctx) error {
 	id := c.Params("id")
-	element := c.Query("element")
-	switch element {
+	elementType := c.Params("elementType")
+	switch elementType {
 	case "":
-		return statusError(c, ErrMissingElementQueryParam)
+		return statusError(c, ErrMissingElementTypeParam)
 	case "node":
 		return listByID(c, id, "nodes", h.queries.ListByID)
 	case "way":
