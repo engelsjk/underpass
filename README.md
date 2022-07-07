@@ -96,7 +96,7 @@ By default, Underpass includes only two SQL queries to the Docker-OSM database:
 The ListByID query is used to query the Docker-OSM database for a single OSM feature (a node, way or relation) by its OSM ID.
 
 ```
-/api/{node|way|relation}/{osm_id}
+/api/v1/features/{osm_id}/{node|way|relation}
 ```
 
 If that OSM ID exists in the database, the response will be a single GeoJSON feature.
@@ -104,7 +104,7 @@ If that OSM ID exists in the database, the response will be a single GeoJSON fea
 For example:
 
 ```
-/api/way/48985299
+/api/v1/features/48985299/way
 ```
 
 ```json
@@ -128,7 +128,7 @@ For example:
 The ListByBoundingBox query is used to query the Docker-OSM database for all OSM features within a bounding box, given by its lower-left and upper-right coordinate pair.
 
 ```
-/api/bbox/{ll_lat},{ll_lon},{ur_lat},{ur_lon}
+/api/v1/features?bbox={ll_lat},{ll_lon},{ur_lat},{ur_lon}
 ```
 
 The response will be an array of GeoJSON features.
